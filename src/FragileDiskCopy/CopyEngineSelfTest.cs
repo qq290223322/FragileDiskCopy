@@ -249,9 +249,12 @@ internal static class CopyEngineSelfTest
                 Assert(fileView.RowCount == 2999, "Follow mode did not hide the completed file.");
                 fileView.SetRunningMode(followCurrent: false);
                 Assert(fileView.RowCount == 3000, "Full list mode did not restore all files.");
+                var expectedDescription = UiText.Get(
+                    "当前显示 3000 项，共 3000 项，已完成 1 项",
+                    "Showing 3000 of 3000 items; 1 completed");
                 Assert(
                     fileView.AccessibleRole == AccessibleRole.List &&
-                    fileView.AccessibleDescription == "当前显示 3000 项，共 3000 项，已完成 1 项",
+                    fileView.AccessibleDescription == expectedDescription,
                     "File list did not expose a compact accessibility summary.");
                 fileView.SetInitialRows(
                 [
