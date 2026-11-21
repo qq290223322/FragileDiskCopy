@@ -1,0 +1,44 @@
+name: Build Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore .\FragileDiskCopy.sln
+
+      - name: Build
+        run: dotnet build .\FragileDiskCopy.sln -c Release --no-restore
+
+      - name: Publish
+        run: dotnet publish .\src\FragileDiskCopy\FragileDiskCopy.csproj -c Release -o .\dist
+
+      - name: Self-test
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\dist\FragileDiskCopy.exe" -ArgumentList "--self-test" -WindowStyle Hidden -Wait -PassThru
+          Get-Content -LiteralPath (Join-Path $env:TEMP "FragileDiskCopySelfTest.last.txt") -Raw
+          exit $process.ExitCode
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/FragileDiskCopy.exe
+          generate_release_notes: true

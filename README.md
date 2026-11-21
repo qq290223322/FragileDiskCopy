@@ -4,6 +4,8 @@
 
 > 适用于“需要尽量抢救数据，但源盘已经无法承受正常高速读取”的场景。它不是数据恢复或坏道修复软件。
 
+[下载最新发布版](https://github.com/qq290223322/FragileDiskCopy/releases/latest)
+
 ## 主要功能
 
 ### 稳定读取与断点续拷
@@ -71,7 +73,7 @@
 构建并发布后运行：
 
 ```text
-FragileDiskCopy\release\FragileDiskCopy.exe
+src\FragileDiskCopy\release\FragileDiskCopy.exe
 ```
 
 发布物为 Windows x64 自包含单文件，不要求目标机器另外安装 .NET。
@@ -136,9 +138,9 @@ FragileDiskCopy\release\FragileDiskCopy.exe
 ### 发布
 
 ```powershell
-dotnet publish .\FragileDiskCopy\FragileDiskCopy.csproj `
+dotnet publish .\src\FragileDiskCopy\FragileDiskCopy.csproj `
   -c Release `
-  -o .\FragileDiskCopy\release
+  -o .\src\FragileDiskCopy\release
 ```
 
 项目文件已配置：
@@ -152,7 +154,7 @@ dotnet publish .\FragileDiskCopy\FragileDiskCopy.csproj `
 ### 自检
 
 ```powershell
-.\FragileDiskCopy\release\FragileDiskCopy.exe --self-test
+.\src\FragileDiskCopy\release\FragileDiskCopy.exe --self-test
 ```
 
 结果写入：
@@ -178,8 +180,10 @@ dotnet publish .\FragileDiskCopy\FragileDiskCopy.csproj `
 
 ```text
 .
+├─ .github/workflows/release.yml
+├─ FragileDiskCopy.sln
 ├─ README.md
-└─ FragileDiskCopy/
+└─ src/FragileDiskCopy/
    ├─ FragileDiskCopy.csproj
    ├─ Program.cs
    ├─ MainForm.cs
