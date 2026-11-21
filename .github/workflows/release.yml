@@ -30,15 +30,26 @@ jobs:
       - name: Publish
         run: dotnet publish .\src\FragileDiskCopy\FragileDiskCopy.csproj -c Release -o .\dist
 
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          $assetName = "FragileDiskCopy-${{ github.ref_name }}-win-x64.exe"
+          Copy-Item -LiteralPath ".\dist\FragileDiskCopy.exe" -Destination ".\dist\$assetName"
+          $hash = (Get-FileHash -LiteralPath ".\dist\$assetName" -Algorithm SHA256).Hash
+          "$hash  $assetName" | Set-Content -LiteralPath ".\dist\SHA256SUMS.txt" -Encoding utf8NoBOM
+
       - name: Self-test
         shell: pwsh
         run: |
-          $process = Start-Process -FilePath ".\dist\FragileDiskCopy.exe" -ArgumentList "--self-test" -WindowStyle Hidden -Wait -PassThru
+          $assetName = "FragileDiskCopy-${{ github.ref_name }}-win-x64.exe"
+          $process = Start-Process -FilePath ".\dist\$assetName" -ArgumentList "--self-test" -WindowStyle Hidden -Wait -PassThru
           Get-Content -LiteralPath (Join-Path $env:TEMP "FragileDiskCopySelfTest.last.txt") -Raw
           exit $process.ExitCode
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/FragileDiskCopy.exe
+          files: |
+            dist/FragileDiskCopy-${{ github.ref_name }}-win-x64.exe
+            dist/SHA256SUMS.txt
           generate_release_notes: true
