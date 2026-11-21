@@ -6,7 +6,7 @@ internal sealed class MultiFolderDialog : Form
 
     public MultiFolderDialog(IEnumerable<string> initialFolders)
     {
-        Text = "选择源文件夹（可多选）";
+        Text = UiText.Get("选择源文件夹（可多选）", "Select source folders");
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(760, 440);
         MinimumSize = new Size(620, 360);
@@ -33,9 +33,17 @@ internal sealed class MultiFolderDialog : Form
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };
-        var addButton = new Button { Text = "添加文件夹", Width = 110 };
+        var addButton = new Button
+        {
+            Text = UiText.Get("添加文件夹", "Add folder"),
+            Width = 110
+        };
         addButton.Click += AddFolder;
-        var removeButton = new Button { Text = "移除选中", Width = 100 };
+        var removeButton = new Button
+        {
+            Text = UiText.Get("移除选中", "Remove selected"),
+            Width = 110
+        };
         removeButton.Click += RemoveSelected;
         addRemove.Controls.AddRange([addButton, removeButton]);
         layout.Controls.Add(addRemove, 0, 0);
@@ -51,17 +59,20 @@ internal sealed class MultiFolderDialog : Form
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false
         };
-        var okButton = new Button { Text = "确定", Width = 88 };
+        var okButton = new Button { Text = UiText.Get("确定", "OK"), Width = 88 };
         okButton.Click += (_, _) =>
         {
             if (_folders.Items.Count == 0)
             {
-                MessageBox.Show(this, "请至少添加一个源文件夹。", "选择源文件夹");
+                MessageBox.Show(
+                    this,
+                    UiText.Get("请至少添加一个源文件夹。", "Add at least one source folder."),
+                    UiText.Get("选择源文件夹", "Select source folders"));
                 return;
             }
             DialogResult = DialogResult.OK;
         };
-        var cancelButton = new Button { Text = "取消", Width = 88 };
+        var cancelButton = new Button { Text = UiText.Get("取消", "Cancel"), Width = 88 };
         cancelButton.Click += (_, _) => DialogResult = DialogResult.Cancel;
         buttons.Controls.AddRange([okButton, cancelButton]);
         layout.Controls.Add(buttons, 0, 2);
@@ -75,7 +86,7 @@ internal sealed class MultiFolderDialog : Form
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "选择要添加的源文件夹",
+            Description = UiText.Get("选择要添加的源文件夹", "Choose a source folder to add"),
             UseDescriptionForTitle = true,
             ShowNewFolderButton = false
         };

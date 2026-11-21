@@ -64,6 +64,7 @@ Destination\
 
 ### File list and task resume
 
+- The interface supports live switching between Chinese and English. Chinese system locales default to Chinese; other locales default to English, and a manual choice is saved.
 - The file list is a custom-painted virtual list; only visible rows are rendered.
 - It shows status, relative path, size, exact processed bytes and errors.
 - “Follow file” is enabled by default: only unfinished files are shown and the current file is kept in view.

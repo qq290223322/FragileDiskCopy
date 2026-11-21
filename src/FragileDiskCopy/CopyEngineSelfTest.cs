@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -280,6 +281,20 @@ internal static class CopyEngineSelfTest
                 stalledBar.Stalled = true;
                 Assert(stalledBar.Stalled, "Stalled progress-bar state was not retained.");
             }
+
+            Assert(
+                UiText.GetDefaultLanguage(CultureInfo.GetCultureInfo("zh-CN")) == UiLanguage.Chinese,
+                "Chinese system language did not select Chinese UI by default.");
+            Assert(
+                UiText.GetDefaultLanguage(CultureInfo.GetCultureInfo("en-US")) == UiLanguage.English &&
+                UiText.GetDefaultLanguage(CultureInfo.GetCultureInfo("ja-JP")) == UiLanguage.English,
+                "Non-Chinese system languages did not select English UI by default.");
+            var originalLanguage = UiText.Current;
+            UiText.Current = UiLanguage.English;
+            Assert(UiText.Get("中文", "English") == "English", "English UI lookup failed.");
+            UiText.Current = UiLanguage.Chinese;
+            Assert(UiText.Get("中文", "English") == "中文", "Chinese UI lookup failed.");
+            UiText.Current = originalLanguage;
 
             File.WriteAllText(
                 resultPath,

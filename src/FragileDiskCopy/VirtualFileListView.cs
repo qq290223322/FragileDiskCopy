@@ -24,7 +24,7 @@ internal sealed class VirtualFileListView : Control
         DoubleBuffered = true;
         BackColor = Color.White;
         AccessibleRole = AccessibleRole.List;
-        AccessibleName = "文件列表";
+        AccessibleName = UiText.Get("文件列表", "File list");
 
         _scrollBar.Dock = DockStyle.Right;
         _scrollBar.Visible = false;
@@ -38,6 +38,13 @@ internal sealed class VirtualFileListView : Control
     public void SetSelectionEnabled(bool enabled)
     {
         _selectionEnabled = enabled;
+        Invalidate();
+    }
+
+    public void RefreshLanguage()
+    {
+        AccessibleName = UiText.Get("文件列表", "File list");
+        UpdateAccessibleDescription();
         Invalidate();
     }
 
@@ -166,10 +173,10 @@ internal sealed class VirtualFileListView : Control
         if (_rows.Count == 0)
         {
             var emptyMessage = _allRows.Count == 0
-                ? "尚未载入文件清单"
+                ? UiText.Get("尚未载入文件清单", "No manifest loaded")
                 : _typeFilter != FileTypeCategory.AllFiles
-                    ? "没有符合文件类型筛选的文件"
-                    : "没有未完成文件";
+                    ? UiText.Get("没有符合文件类型筛选的文件", "No files match the current type filter")
+                    : UiText.Get("没有未完成文件", "No unfinished files");
             TextRenderer.DrawText(
                 e.Graphics,
                 emptyMessage,
@@ -299,7 +306,9 @@ internal sealed class VirtualFileListView : Control
     private void UpdateAccessibleDescription()
     {
         var completed = _allRows.Count(row => row.Status == ItemStatus.Done);
-        AccessibleDescription = $"当前显示 {_rows.Count} 项，共 {_allRows.Count} 项，已完成 {completed} 项";
+        AccessibleDescription = UiText.Get(
+            $"当前显示 {_rows.Count} 项，共 {_allRows.Count} 项，已完成 {completed} 项",
+            $"Showing {_rows.Count} of {_allRows.Count} items; {completed} completed");
     }
 
     private static int[] GetColumns(int width)
@@ -322,12 +331,19 @@ internal sealed class VirtualFileListView : Control
 
         TextRenderer.DrawText(
             graphics,
-            "选",
+            UiText.Get("选", "Sel"),
             Font,
             new Rectangle(5, 0, 22, HeaderHeight),
             Color.Black,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
-        string[] headers = ["状态", "文件", "大小", "已处理", "说明"];
+        string[] headers =
+        [
+            UiText.Get("状态", "Status"),
+            UiText.Get("文件", "File"),
+            UiText.Get("大小", "Size"),
+            UiText.Get("已处理", "Processed"),
+            UiText.Get("说明", "Details")
+        ];
         for (var i = 0; i < headers.Length; i++)
         {
             var x = GetColumnX(columns, i) + (i == 0 ? 22 : 0);
@@ -388,15 +404,15 @@ internal sealed class VirtualFileListView : Control
     private static string FileStatusText(FileStatusRow row)
     {
         if (!row.Selected)
-            return "未勾选";
+            return UiText.Get("未勾选", "Unchecked");
         return row.Status switch
         {
-            ItemStatus.Pending => "待拷贝",
-            ItemStatus.Copying => "正在拷贝",
-            ItemStatus.Done => "已完成",
-            ItemStatus.Failed => "失败",
-            ItemStatus.ScanError => "扫描错误",
-            ItemStatus.Skipped => "已跳过",
+            ItemStatus.Pending => UiText.Get("待拷贝", "Pending"),
+            ItemStatus.Copying => UiText.Get("正在拷贝", "Copying"),
+            ItemStatus.Done => UiText.Get("已完成", "Done"),
+            ItemStatus.Failed => UiText.Get("失败", "Failed"),
+            ItemStatus.ScanError => UiText.Get("扫描错误", "Scan error"),
+            ItemStatus.Skipped => UiText.Get("已跳过", "Skipped"),
             _ => row.Status.ToString()
         };
     }
