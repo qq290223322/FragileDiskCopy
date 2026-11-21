@@ -56,6 +56,7 @@ internal sealed class MainForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
 
         BuildLayout();
+        _fileList.SelectionChanged += FileSelectionChanged;
         LoadSettings();
         FormClosing += HandleFormClosing;
     }
@@ -445,12 +446,14 @@ internal sealed class MainForm : Form
                 sources,
                 target,
                 (long)(_speedBox.Value * 1024M * 1024M));
+            engine.SetTypeFilter(SelectedFileTypeCategory());
             _engine = engine;
             _scanButton.Enabled = false;
             _statusLabel.Text = "正在扫描源文件夹并生成清单…";
 
             var files = await Task.Run(() => engine.ScanFiles(CancellationToken.None));
             SetInitialFileList(files);
+            _fileList.SetSelectionEnabled(true);
             var copyFiles = files.Where(file =>
                 file.Status is not ItemStatus.ScanError and not ItemStatus.Skipped).ToList();
             var doneFiles = copyFiles.Count(file => file.Status == ItemStatus.Done);
@@ -490,6 +493,12 @@ internal sealed class MainForm : Form
     private void FileTypeFilterChanged(object? sender, EventArgs e)
     {
         _fileList.SetFileTypeFilter(SelectedFileTypeCategory());
+    }
+
+    private void FileSelectionChanged(string relativePath, bool selected)
+    {
+        if (!_taskStarted)
+            _engine?.SetItemSelected(relativePath, selected);
     }
 
     private FileTypeCategory SelectedFileTypeCategory()
@@ -560,6 +569,7 @@ internal sealed class MainForm : Form
             _engine = previewEngine;
             _taskStarted = false;
             SetInitialFileList(files);
+            _fileList.SetSelectionEnabled(true);
 
             var copyFiles = files.Where(file => file.Status is not ItemStatus.ScanError and not ItemStatus.Skipped).ToList();
             var doneFiles = copyFiles.Count(file => file.Status == ItemStatus.Done);
@@ -648,6 +658,17 @@ internal sealed class MainForm : Form
             {
                 _engine.SetBytesPerSecond(bytesPerSecond);
             }
+
+            var selectedCategory = SelectedFileTypeCategory();
+            _engine.SetTypeFilter(selectedCategory);
+            if (_fileList.TotalRowCount > 0)
+            {
+                var selectedPaths = _fileList.GetSelectedPaths(selectedCategory);
+                if (selectedPaths.Count == 0)
+                    throw new InvalidOperationException("当前文件类型和勾选设置下没有可复制的文件。");
+                _engine.ApplySelection(selectedPaths);
+            }
+
             var initialBytesPerSecond = Math.Min(
                 DynamicSpeedPolicy.StartingBytesPerSecond,
                 dynamicSpeed ? maximumBytesPerSecond : bytesPerSecond);
@@ -1055,6 +1076,8 @@ internal sealed class MainForm : Form
         _dynamicSpeedCheckBox.Enabled = !running;
         _maxSpeedBox.Enabled = !running && _dynamicSpeedCheckBox.Checked;
         _growthIntervalBox.Enabled = !running && _dynamicSpeedCheckBox.Checked;
+        _fileTypeFilterBox.Enabled = !running && !_taskStarted;
+        _fileList.SetSelectionEnabled(!running && !_taskStarted);
         _startButton.Enabled = !running;
         _scanButton.Enabled = !running && !_taskStarted;
         _continueTaskButton.Enabled = !running && !_taskStarted;

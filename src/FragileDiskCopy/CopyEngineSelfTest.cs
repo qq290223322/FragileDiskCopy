@@ -156,12 +156,23 @@ internal static class CopyEngineSelfTest
             File.WriteAllText(Path.Combine(scanSource, "photo.jpg"), "image");
             File.WriteAllText(Path.Combine(scanSource, "notes.txt"), "document");
             var scanEngine = new CopyEngine(scanSource, scanTarget, 1024 * 1024);
+            scanEngine.SetTypeFilter(FileTypeCategory.Images);
             var scannedFiles = scanEngine.ScanFiles(CancellationToken.None);
             Assert(scannedFiles.Count == 2, "Standalone scan did not list all files.");
+            Assert(
+                scannedFiles.Single(file => file.RelativePath == "photo.jpg").Selected &&
+                !scannedFiles.Single(file => file.RelativePath == "notes.txt").Selected,
+                "File type filtering did not set the copy selection.");
             Assert(
                 !File.Exists(Path.Combine(scanTarget, "photo.jpg")) &&
                 !File.Exists(Path.Combine(scanTarget, "notes.txt")),
                 "Standalone scan copied files instead of only building the manifest.");
+            var filteredCopy = scanEngine.Run(null, CancellationToken.None);
+            Assert(filteredCopy.DoneFiles == 1, "Filtered copy selected the wrong number of files.");
+            Assert(
+                File.Exists(Path.Combine(scanTarget, "photo.jpg")) &&
+                !File.Exists(Path.Combine(scanTarget, "notes.txt")),
+                "File type filtering did not limit the actual copy scope.");
 
             var missingSource = Path.Combine(testRoot, "missing-source");
             var missingTarget = Path.Combine(testRoot, "missing-target");
@@ -253,6 +264,14 @@ internal static class CopyEngineSelfTest
                 Assert(fileView.RowCount == 1, "Video file filter did not match its formats.");
                 fileView.SetFileTypeFilter(FileTypeCategory.Documents);
                 Assert(fileView.RowCount == 1, "Document file filter did not match its formats.");
+                fileView.SetSelected("photo.JPG", false);
+                Assert(
+                    fileView.GetSelectedPaths(FileTypeCategory.Images).Count == 0,
+                    "Clearing a row checkbox did not remove it from the copy selection.");
+                fileView.SetSelected("photo.JPG", true);
+                Assert(
+                    fileView.GetSelectedPaths(FileTypeCategory.Images).Count == 1,
+                    "Checking a row did not restore it to the copy selection.");
             }
 
             using (var stalledBar = new PercentageProgressBar())

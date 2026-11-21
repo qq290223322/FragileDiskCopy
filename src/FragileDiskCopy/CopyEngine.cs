@@ -22,6 +22,7 @@ internal sealed class ManifestItem
     public DateTime LastWriteUtc { get; set; }
     public ItemStatus Status { get; set; }
     public string Error { get; set; } = "";
+    public bool Selected { get; set; } = true;
 }
 
 internal sealed record FileStatusRow(
@@ -30,7 +31,8 @@ internal sealed record FileStatusRow(
     long ProcessedBytes,
     ItemStatus Status,
     string? Error,
-    long ResumeBytes = 0);
+    long ResumeBytes = 0,
+    bool Selected = true);
 
 internal sealed record CopyProgress(
     int CompletedFiles,
@@ -76,6 +78,7 @@ internal sealed class CopyEngine
     private int _stallCount;
     private volatile List<ManifestItem>? _manifestItems;
     private readonly SourceMount[] _sourceMounts;
+    private FileTypeCategory _typeFilter = FileTypeCategory.AllFiles;
 
     public CopyEngine(string sourceRoot, string targetRoot, long bytesPerSecond)
         : this([sourceRoot], targetRoot, bytesPerSecond)
@@ -222,6 +225,33 @@ internal sealed class CopyEngine
         _rateClock.Restart();
     }
 
+    public void SetTypeFilter(FileTypeCategory category)
+    {
+        _typeFilter = category;
+    }
+
+    public void ApplySelection(IEnumerable<string> selectedPaths)
+    {
+        var items = _manifestItems;
+        if (items is null)
+            return;
+
+        var selected = selectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+            item.Selected = selected.Contains(item.RelativePath);
+        SaveManifest(items);
+    }
+
+    public void SetItemSelected(string relativePath, bool selected)
+    {
+        var item = _manifestItems?.FirstOrDefault(candidate =>
+            string.Equals(candidate.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+            return;
+        item.Selected = selected;
+        SaveManifest(_manifestItems!);
+    }
+
     public CopyReport Run(Action<CopyProgress>? progress, CancellationToken cancellationToken)
     {
         _bytesRead = 0;
@@ -238,7 +268,11 @@ internal sealed class CopyEngine
             EnsureStorageAvailable();
             items = LoadOrBuildManifest(cancellationToken);
             _manifestItems = items;
-            files = items.Where(item => item.Status is not ItemStatus.ScanError and not ItemStatus.Skipped).ToList();
+            files = items
+                .Where(item =>
+                    item.Selected &&
+                    item.Status is not ItemStatus.ScanError and not ItemStatus.Skipped)
+                .ToList();
             totalBytes = files.Sum(item => item.Size);
 
             foreach (var item in files.Where(item => item.Status == ItemStatus.Done))
@@ -507,7 +541,8 @@ internal sealed class CopyEngine
                                 SourceIndex = sourceIndex,
                                 Size = info.Length,
                                 LastWriteUtc = info.LastWriteTimeUtc,
-                                Status = ItemStatus.Pending
+                                Status = ItemStatus.Pending,
+                                Selected = FileTypeFilter.Matches(relativePath, _typeFilter)
                             };
                         }
                     }
@@ -649,17 +684,19 @@ internal sealed class CopyEngine
                 continue;
 
             var fields = line.Split('\t');
-            if (fields.Length is not (5 or 6))
+            if (fields.Length is not (5 or 6 or 7))
                 throw new InvalidDataException($"清单格式损坏，请保留并检查文件：{ManifestPath}");
 
+            var sourceIndex = 0;
+            if (fields.Length >= 6 &&
+                !int.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out sourceIndex))
+                throw new InvalidDataException($"清单源目录编号无效：{fields[5]}");
             var item = new ManifestItem
             {
                 RelativePath = fields[3],
-                SourceIndex = fields.Length == 6 &&
-                              int.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out var sourceIndex)
-                    ? sourceIndex
-                    : 0,
-                Error = fields[4]
+                SourceIndex = sourceIndex,
+                Error = fields[4],
+                Selected = fields.Length < 7 || fields[6] != "0"
             };
             item.Status = fields[0] switch
             {
@@ -724,7 +761,7 @@ internal sealed class CopyEngine
                 writer.WriteLine($"# 掉盘次数: {DiskDropCount}");
                 writer.WriteLine($"# 卡顿次数: {StallCount}");
                 writer.WriteLine("# 状态：[ ]待拷贝  [>]正在拷贝  [x]已完成  [!]失败  [E]扫描错误  [-]已跳过");
-                writer.WriteLine("状态\t大小(字节)\t修改时间(UTC)\t相对路径\t错误\t源序号");
+                writer.WriteLine("状态\t大小(字节)\t修改时间(UTC)\t相对路径\t错误\t源序号\t已勾选");
 
                 foreach (var item in items.OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase))
                 {
@@ -738,7 +775,9 @@ internal sealed class CopyEngine
                     writer.Write('\t');
                     writer.Write(OneLine(item.Error));
                     writer.Write('\t');
-                    writer.WriteLine(item.SourceIndex.ToString(CultureInfo.InvariantCulture));
+                    writer.Write(item.SourceIndex.ToString(CultureInfo.InvariantCulture));
+                    writer.Write('\t');
+                    writer.WriteLine(item.Selected ? "1" : "0");
                 }
 
                 writer.Flush();
@@ -988,7 +1027,8 @@ internal sealed class CopyEngine
             processedBytes,
             item.Status,
             string.IsNullOrEmpty(item.Error) ? null : item.Error,
-            resumeBytes);
+            resumeBytes,
+            item.Selected);
     }
 
     private static void RestoreCopyingAsPending(IEnumerable<ManifestItem> items)

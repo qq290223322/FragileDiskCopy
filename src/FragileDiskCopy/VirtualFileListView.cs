@@ -15,6 +15,9 @@ internal sealed class VirtualFileListView : Control
     private bool _showUnfinishedOnly;
     private bool _followCurrent;
     private FileTypeCategory _typeFilter = FileTypeCategory.AllFiles;
+    private bool _selectionEnabled = true;
+
+    public event Action<string, bool>? SelectionChanged;
 
     public VirtualFileListView()
     {
@@ -31,6 +34,31 @@ internal sealed class VirtualFileListView : Control
 
     public int RowCount => _rows.Count;
     public int TotalRowCount => _allRows.Count;
+
+    public void SetSelectionEnabled(bool enabled)
+    {
+        _selectionEnabled = enabled;
+        Invalidate();
+    }
+
+    public IReadOnlyList<string> GetSelectedPaths(FileTypeCategory category)
+    {
+        return _allRows
+            .Where(row => row.Selected && FileTypeFilter.Matches(row.RelativePath, category))
+            .Select(row => row.RelativePath)
+            .ToArray();
+    }
+
+    public void SetSelected(string relativePath, bool selected)
+    {
+        var index = _allRows.FindIndex(row =>
+            string.Equals(row.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+        if (index < 0 || _allRows[index].Selected == selected)
+            return;
+        _allRows[index] = _allRows[index] with { Selected = selected };
+        RebuildVisibleRows();
+        SelectionChanged?.Invoke(relativePath, selected);
+    }
 
     public void SetInitialRows(IReadOnlyList<FileStatusRow> rows)
     {
@@ -109,6 +137,22 @@ internal sealed class VirtualFileListView : Control
         _scrollBar.Value = Math.Clamp(_scrollBar.Value + delta, _scrollBar.Minimum, _scrollBar.Maximum - _scrollBar.LargeChange + 1);
     }
 
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (!_selectionEnabled || e.Button != MouseButtons.Left ||
+            e.Y < HeaderHeight || e.X >= 28)
+            return;
+
+        var visibleIndex = (e.Y - HeaderHeight) / RowHeight;
+        var index = _scrollBar.Value + visibleIndex;
+        if (visibleIndex < 0 || visibleIndex >= VisibleRowCount || index >= _rows.Count)
+            return;
+
+        var row = _rows[index];
+        SetSelected(row.RelativePath, !row.Selected);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
@@ -152,13 +196,18 @@ internal sealed class VirtualFileListView : Control
 
             var color = row.Status switch
             {
+                _ when !row.Selected => Color.Gray,
                 ItemStatus.Copying or ItemStatus.Done => Color.ForestGreen,
                 ItemStatus.Failed or ItemStatus.ScanError => Color.Firebrick,
                 ItemStatus.Skipped => Color.DimGray,
                 _ => Color.Black
             };
-            var x = 0;
-            DrawCell(e.Graphics, FileStatusText(row.Status), rowRectangle, x, columns[0], color);
+            ControlPaint.DrawCheckBox(
+                e.Graphics,
+                new Rectangle(6, y + 4, 14, 14),
+                row.Selected ? ButtonState.Checked : ButtonState.Normal);
+            var x = 22;
+            DrawCell(e.Graphics, FileStatusText(row), rowRectangle, x, columns[0] - 22, color);
             x += columns[0];
             DrawCell(e.Graphics, row.RelativePath, rowRectangle, x, columns[1], Color.Black);
             x += columns[1];
@@ -209,7 +258,8 @@ internal sealed class VirtualFileListView : Control
 
     private static bool IsUnfinished(FileStatusRow row)
     {
-        return row.Status is ItemStatus.Pending or ItemStatus.Copying or ItemStatus.Failed;
+        return row.Selected &&
+               row.Status is ItemStatus.Pending or ItemStatus.Copying or ItemStatus.Failed;
     }
 
     private void FollowCurrentFile(string relativePath)
@@ -270,14 +320,23 @@ internal sealed class VirtualFileListView : Control
         graphics.FillRectangle(background, 0, 0, width, HeaderHeight);
         graphics.DrawLine(line, 0, HeaderHeight - 1, width, HeaderHeight - 1);
 
+        TextRenderer.DrawText(
+            graphics,
+            "选",
+            Font,
+            new Rectangle(5, 0, 22, HeaderHeight),
+            Color.Black,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         string[] headers = ["状态", "文件", "大小", "已处理", "说明"];
         for (var i = 0; i < headers.Length; i++)
         {
+            var x = GetColumnX(columns, i) + (i == 0 ? 22 : 0);
+            var textWidth = columns[i] - (i == 0 ? 22 : 0);
             TextRenderer.DrawText(
                 graphics,
                 headers[i],
                 Font,
-                new Rectangle(GetColumnX(columns, i) + 6, 0, columns[i] - 8, HeaderHeight),
+                new Rectangle(x + 6, 0, textWidth - 8, HeaderHeight),
                 Color.Black,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
@@ -326,9 +385,11 @@ internal sealed class VirtualFileListView : Control
         return bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " 字节";
     }
 
-    private static string FileStatusText(ItemStatus status)
+    private static string FileStatusText(FileStatusRow row)
     {
-        return status switch
+        if (!row.Selected)
+            return "未勾选";
+        return row.Status switch
         {
             ItemStatus.Pending => "待拷贝",
             ItemStatus.Copying => "正在拷贝",
@@ -336,7 +397,7 @@ internal sealed class VirtualFileListView : Control
             ItemStatus.Failed => "失败",
             ItemStatus.ScanError => "扫描错误",
             ItemStatus.Skipped => "已跳过",
-            _ => status.ToString()
+            _ => row.Status.ToString()
         };
     }
 }
